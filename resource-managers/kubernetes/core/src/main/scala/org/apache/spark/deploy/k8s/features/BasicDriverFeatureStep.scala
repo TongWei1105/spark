@@ -46,7 +46,9 @@ private[spark] class BasicDriverFeatureStep(conf: KubernetesDriverConf)
   private val driverCoresRequest = conf
     .get(KUBERNETES_DRIVER_REQUEST_CORES)
     .getOrElse(driverCpuCores.toString)
-  private val driverLimitCores = conf.get(KUBERNETES_DRIVER_LIMIT_CORES)
+  private val driverLimitCores = conf
+    .get(KUBERNETES_DRIVER_LIMIT_CORES)
+    .getOrElse(driverCoresRequest)
 
   // Memory settings
   private val driverMemoryMiB = conf.get(DRIVER_MEMORY)
@@ -86,9 +88,7 @@ private[spark] class BasicDriverFeatureStep(conf: KubernetesDriverConf)
       Seq(ENV_APPLICATION_ID -> conf.appId) ++ conf.environment)
     val driverCpuQuantity = new Quantity(driverCoresRequest)
     val driverMemoryQuantity = new Quantity(s"${driverMemoryWithOverheadMiB}Mi")
-    val maybeCpuLimitQuantity = driverLimitCores.map { limitCores =>
-      ("cpu", new Quantity(limitCores))
-    }
+    val maybeCpuLimitQuantity = new Quantity(driverLimitCores)
 
     val driverResourceQuantities =
       KubernetesUtils.buildResourcesQuantities(SPARK_DRIVER_PREFIX, conf.sparkConf)
@@ -131,7 +131,7 @@ private[spark] class BasicDriverFeatureStep(conf: KubernetesDriverConf)
         .endEnv()
       .editOrNewResources()
         .addToRequests("cpu", driverCpuQuantity)
-        .addToLimits(maybeCpuLimitQuantity.toMap.asJava)
+        .addToLimits("cpu", maybeCpuLimitQuantity)
         .addToRequests("memory", driverMemoryQuantity)
         .addToLimits("memory", driverMemoryQuantity)
         .addToLimits(driverResourceQuantities.asJava)
